@@ -15,7 +15,6 @@ import json
 import mimetypes
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -32,18 +31,27 @@ SLUG_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
 VALID_TRUST_TIERS = {"official", "verified", "community"}
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n?(.*)$", re.DOTALL)
 
-
-def _git_sha() -> str:
-    sha = os.environ.get("GITHUB_SHA")
-    if sha:
-        return sha
-    try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT).decode().strip()
-    except Exception:
-        return ""
+# Size caps. The whole catalog is shipped as a single registry.json that PostHog fetches hourly, so
+# keep individual skills small. These are intentionally generous for text instructions.
+MAX_FILE_BYTES = 256 * 1024  # 256 KiB per bundled file (incl. SKILL.md)
+MAX_SKILL_BYTES = 1024 * 1024  # 1 MiB total embedded content per skill
 
 
-def _parse_skill(skill_dir: Path, repo_sha: str) -> dict[str, Any]:
+def _list_of_str(frontmatter: dict[str, Any], slug: str, field: str) -> list[str]:
+    """Coerce a frontmatter field to a list of strings, rejecting scalars.
+
+    `yaml.safe_load` turns a bare `field: query` into the string "query"; passing that to `list()`
+    would silently explode it into individual characters, so require an explicit YAML sequence.
+    """
+    value = frontmatter.get(field)
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{slug}: '{field}' must be a YAML list of strings")
+    return value
+
+
+def _parse_skill(skill_dir: Path) -> dict[str, Any]:
     slug = skill_dir.name
     if not SLUG_PATTERN.match(slug) or "--" in slug or len(slug) > 64:
         raise ValueError(f"Invalid skill slug '{slug}' — lowercase letters, numbers, single hyphens only.")
@@ -66,13 +74,33 @@ def _parse_skill(skill_dir: Path, repo_sha: str) -> dict[str, Any]:
     if trust_tier not in VALID_TRUST_TIERS:
         raise ValueError(f"{slug}: trust_tier must be one of {sorted(VALID_TRUST_TIERS)}")
 
+    skill_root = skill_dir.resolve()
     files: list[dict[str, str]] = []
+    total_bytes = len(body.encode())
     for path in sorted(skill_dir.rglob("*")):
+        rel = path.relative_to(skill_dir).as_posix()
+        # Reject symlinks outright: read_text() would follow them and embed out-of-tree content
+        # (e.g. a link to .git/config, which checkout populates with the runner's auth token) into
+        # the public registry.
+        if path.is_symlink():
+            raise ValueError(f"{slug}: symlinks are not allowed ('{rel}')")
         if path.is_dir() or path.name == "SKILL.md":
             continue
-        rel = path.relative_to(skill_dir).as_posix()
+        if not path.resolve().is_relative_to(skill_root):
+            raise ValueError(f"{slug}: '{rel}' resolves outside the skill directory")
+        size = path.stat().st_size
+        if size > MAX_FILE_BYTES:
+            raise ValueError(f"{slug}: '{rel}' is {size} bytes, over the {MAX_FILE_BYTES}-byte per-file limit")
+        try:
+            content = path.read_text()
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"{slug}: '{rel}' is not UTF-8 text; only text files may be bundled") from exc
+        total_bytes += size
         content_type = mimetypes.guess_type(path.name)[0] or "text/plain"
-        files.append({"path": rel, "content": path.read_text(), "content_type": content_type})
+        files.append({"path": rel, "content": content, "content_type": content_type})
+
+    if total_bytes > MAX_SKILL_BYTES:
+        raise ValueError(f"{slug}: embedded content is {total_bytes} bytes, over the {MAX_SKILL_BYTES}-byte limit")
 
     return {
         "slug": slug,
@@ -81,21 +109,23 @@ def _parse_skill(skill_dir: Path, repo_sha: str) -> dict[str, Any]:
         "body": body,
         "license": str(frontmatter.get("license", "")),
         "compatibility": str(frontmatter.get("compatibility", "")),
-        "allowed_tools": list(frontmatter.get("allowed_tools", []) or []),
+        "allowed_tools": _list_of_str(frontmatter, slug, "allowed_tools"),
         "metadata": dict(frontmatter.get("metadata", {}) or {}),
-        "tags": list(frontmatter.get("tags", []) or []),
+        "tags": _list_of_str(frontmatter, slug, "tags"),
         "trust_tier": trust_tier,
         "author_handle": str(frontmatter.get("author_handle", "")),
         "github_url": f"https://github.com/{REPO}/tree/{BRANCH}/skills/{slug}",
-        "source_sha": repo_sha,
+        # Provenance is the commit that PostHog fetches registry.json at, plus github_url. We do NOT
+        # embed the live build commit here: it would change every commit and make the checked-in
+        # registry.json perpetually stale against itself (and against CI's merge GITHUB_SHA).
+        "source_sha": "",
         "files": files,
     }
 
 
 def build_registry() -> dict[str, Any]:
-    repo_sha = _git_sha()
     skills = [
-        _parse_skill(d, repo_sha)
+        _parse_skill(d)
         for d in sorted(SKILLS_DIR.iterdir())
         if d.is_dir() and not d.name.startswith(".")
     ]

@@ -22,12 +22,18 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml
 
-      - name: Validate frontmatter and rebuild registry
-        run: python scripts/build_registry.py
-
-      - name: Fail if registry.json is stale (PRs must commit it)
+      # On PRs, validate without writing: --check parses every skill (failing on bad frontmatter,
+      # symlinks, oversize/non-text files, etc.) AND fails if the contributor didn't commit a fresh
+      # registry.json. Running a mutating build first would regenerate the file and defeat that gate.
+      - name: Validate skills and verify committed registry (PRs)
         if: github.event_name == 'pull_request'
         run: python scripts/build_registry.py --check
+
+      # On pushes (e.g. to main), just validate by building; the publish-registry job below commits
+      # any regenerated registry.json.
+      - name: Validate skills (push)
+        if: github.event_name != 'pull_request'
+        run: python scripts/build_registry.py
 
       - name: Safety scan (prompt-injection heuristics)
         run: python scripts/safety_scan.py

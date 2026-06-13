@@ -27,11 +27,18 @@ HEURISTICS: list[tuple[re.Pattern[str], str]] = [
 
 def main() -> int:
     findings: list[str] = []
-    for skill_md in sorted(SKILLS_DIR.rglob("SKILL.md")):
-        text = skill_md.read_text()
+    # Scan SKILL.md *and* every bundled reference file: build_registry.py embeds those into
+    # registry.json and a skill can direct an agent to read them, so they ship to users too.
+    for path in sorted(SKILLS_DIR.rglob("*")):
+        if path.is_dir() or path.is_symlink():
+            continue
+        try:
+            text = path.read_text()
+        except (UnicodeDecodeError, OSError):
+            continue
         for pattern, reason in HEURISTICS:
             if pattern.search(text):
-                findings.append(f"{skill_md.relative_to(ROOT)}: possible {reason}")
+                findings.append(f"{path.relative_to(ROOT)}: possible {reason}")
 
     if findings:
         print("Safety scan flagged the following — a maintainer must review before merge:", file=sys.stderr)
