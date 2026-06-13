@@ -1,0 +1,58 @@
+name: Validate skills
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Validate frontmatter and rebuild registry
+        run: python scripts/build_registry.py
+
+      - name: Fail if registry.json is stale (PRs must commit it)
+        if: github.event_name == 'pull_request'
+        run: python scripts/build_registry.py --check
+
+      - name: Safety scan (prompt-injection heuristics)
+        run: python scripts/safety_scan.py
+
+  # On main, regenerate and commit registry.json so PostHog's sync sees the latest.
+  publish-registry:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pyyaml
+      - run: python scripts/build_registry.py
+      - name: Commit updated registry
+        run: |
+          if ! git diff --quiet registry.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add registry.json
+            git commit -m "chore: rebuild registry.json"
+            git push
+          fi
