@@ -59,6 +59,12 @@ def _parse_skill(skill_dir: Path) -> dict[str, Any]:
     if not SLUG_PATTERN.match(slug) or "--" in slug or len(slug) > 64:
         raise ValueError(f"Invalid skill slug '{slug}' — lowercase letters, numbers, single hyphens only.")
 
+    # Reject a symlinked skill root too: iterdir()/is_dir() would follow it and embed an out-of-tree
+    # directory the per-file symlink check and safety scan (which doesn't descend into symlinks)
+    # never see.
+    if skill_dir.is_symlink():
+        raise ValueError(f"{slug}: skill directories must not be symlinks")
+
     skill_md = skill_dir / "SKILL.md"
     if not skill_md.exists():
         raise ValueError(f"{slug}: missing SKILL.md")
