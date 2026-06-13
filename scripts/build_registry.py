@@ -22,7 +22,10 @@ from typing import Any
 import yaml
 
 REPO = os.environ.get("GITHUB_REPOSITORY", "PostHog/community-skills")
-BRANCH = os.environ.get("GITHUB_REF_NAME", "main")
+# Branch used to build the canonical github_url. Deliberately NOT derived from GITHUB_REF_NAME:
+# on a pull_request event that is the merge ref ("<n>/merge"), which would make the generated
+# registry.json differ from the committed one and fail --check. The registry is published from main.
+BRANCH = os.environ.get("REGISTRY_BRANCH", "main")
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = ROOT / "skills"
 REGISTRY_PATH = ROOT / "registry.json"
