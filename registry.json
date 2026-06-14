@@ -28,6 +28,26 @@
         "debugging"
       ],
       "trust_tier": "official"
+    },
+    {
+      "allowed_tools": [],
+      "author_handle": "andymaguire",
+      "body": "# Make PR\n\nCreate a GitHub pull request for the current branch using the `gh` CLI.\n\n## Steps\n\n1. Check for a PR template at `.github/PULL_REQUEST_TEMPLATE.md` or `.github/pull_request_template.md`. If found, follow its structure.\n2. Run `git log` and `git diff` against the base branch to understand all changes.\n3. Write a concise PR title (under 70 chars) and body. No emojis. Follow the repo template.\n4. Discover the current user with `gh api user --jq '.login'` and assign them as the PR assignee.\n5. Create the PR using `gh pr create` with `--assignee`.\n6. Return the PR URL.\n\n## Rules\n\n- No filler, no emojis.\n- Push the branch first if not pushed: `git push -u origin HEAD`.\n- Use a HEREDOC for the PR body.\n- No PII or sensitive data \u2014 PRs are public.",
+      "compatibility": "Requires git and the GitHub CLI (gh) authenticated to the repo.",
+      "description": "Create a GitHub pull request for the current branch using the gh CLI. Use when a user wants to open a PR and have the title, body, template, and assignee handled for them, following the repo's conventions and keeping public PRs free of PII.",
+      "files": [],
+      "github_url": "https://github.com/PostHog/community-skills/tree/main/skills/make-pr",
+      "license": "MIT",
+      "metadata": {},
+      "name": "Make PR",
+      "slug": "make-pr",
+      "source_sha": "",
+      "tags": [
+        "github",
+        "pull-request",
+        "workflow"
+      ],
+      "trust_tier": "community"
     }
   ],
   "version": 1
