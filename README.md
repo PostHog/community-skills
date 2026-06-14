@@ -8,8 +8,6 @@ in-app marketplace (under **Skills → Community**) where you can browse, search
 skills into your project with one click. An installed skill becomes a regular project skill you can
 edit and version like any other.
 
-> Think Grafana community plugins, but for PostHog agent skills.
-
 ## What is a skill?
 
 A skill is a directory containing a `SKILL.md` file — markdown instructions with YAML frontmatter
