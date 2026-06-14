@@ -22,17 +22,11 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml
 
-      # On PRs, validate without writing: --check parses every skill (failing on bad frontmatter,
-      # symlinks, oversize/non-text files, etc.) AND fails if the contributor didn't commit a fresh
-      # registry.json. Running a mutating build first would regenerate the file and defeat that gate.
-      - name: Validate skills and verify committed registry (PRs)
-        if: github.event_name == 'pull_request'
-        run: python scripts/build_registry.py --check
-
-      # On pushes (e.g. to main), just validate by building; the publish-registry job below commits
-      # any regenerated registry.json.
-      - name: Validate skills (push)
-        if: github.event_name != 'pull_request'
+      # Validate by building: parses every skill (failing on bad frontmatter, symlinks, oversize or
+      # non-text files, etc.) without requiring contributors to hand-commit registry.json. The
+      # publish-registry job below regenerates and commits it on pushes to main, so the catalog stays
+      # fresh and PRs (including in-product "Publish to community" PRs) only need to add SKILL.md.
+      - name: Validate skills
         run: python scripts/build_registry.py
 
       - name: Safety scan (prompt-injection heuristics)
