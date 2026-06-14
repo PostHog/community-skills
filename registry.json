@@ -1,0 +1,34 @@
+{
+  "skills": [
+    {
+      "allowed_tools": [
+        "query",
+        "docs-search"
+      ],
+      "author_handle": "posthog",
+      "body": "# Web analytics triage\n\nYou are helping triage an unexpected change in web traffic. Work top-down: confirm the change is\nreal, then narrow to the dimension that explains most of it, then propose the likely cause.\n\n## Steps\n\n1. **Confirm the signal.** Query the relevant web metric (pageviews / sessions / conversion) over a\n   window wide enough to show the baseline and the anomaly. State the magnitude and timing of the\n   change in plain numbers before going further.\n2. **Rule out instrumentation.** Check whether the change coincides with a deploy or an SDK/version\n   change. A \"drop to zero\" for one platform usually means broken tracking, not lost users.\n3. **Break down by dimension, biggest first.** Compare the anomalous window to baseline across:\n   channel/referrer, device type, geography, and top paths. Find the dimension whose shift accounts\n   for most of the delta \u2014 don't enumerate every breakdown.\n4. **Form a hypothesis.** Tie the dominant dimension to a likely cause (e.g. \"referral traffic from\n   X dropped after their link changed\", \"mobile Safari pageviews fell after the 1.2.0 release\").\n5. **Report.** Give the user: the confirmed magnitude, the dominant dimension, the single most\n   likely cause, and one concrete next check to confirm it.\n\nSee [references/playbook.md](references/playbook.md) for dimension-by-dimension query hints.\n\n## Guardrails\n\n- Prefer one well-scoped query per step over many speculative ones.\n- If the data contradicts the user's framing (e.g. they say \"drop\" but it's flat), say so plainly.\n- Never fabricate numbers \u2014 if a query returns nothing, report that and adjust the window.",
+      "compatibility": "",
+      "description": "Investigate a sudden change in web traffic. Use when a user reports a spike or drop in pageviews, sessions, or conversion and wants to find the likely cause (channel, device, referrer, or release) before escalating.",
+      "files": [
+        {
+          "content": "# Triage playbook \u2014 dimension hints\n\nConcrete breakdowns to reach for at step 3, roughly in order of how often they explain a web-traffic\nanomaly. Compare the anomalous window against an equivalent baseline window.\n\n- **Channel / referrer** \u2014 `$referring_domain`, UTM source/medium. A single referrer appearing or\n  disappearing is the most common cause of a sharp swing.\n- **Device / browser** \u2014 `$device_type`, `$browser`, `$browser_version`. A change isolated to one\n  browser or version usually points at a tracking or rendering regression, not real user behavior.\n- **Geography** \u2014 `$geoip_country_name`. Bot waves and CDN/region incidents show up here.\n- **Top paths** \u2014 `$pathname`. A change concentrated on one route points at that page (a broken\n  link, a removed CTA, a redirect).\n\nIf no single dimension dominates, the change is likely broad (a sitewide deploy, a tracking change,\nor a genuine market-wide shift) \u2014 say so rather than forcing a narrow cause.\n",
+          "content_type": "text/markdown",
+          "path": "references/playbook.md"
+        }
+      ],
+      "github_url": "https://github.com/PostHog/community-skills/tree/main/skills/example-web-analytics-triage",
+      "license": "MIT",
+      "metadata": {},
+      "name": "Web analytics triage",
+      "slug": "example-web-analytics-triage",
+      "source_sha": "",
+      "tags": [
+        "web-analytics",
+        "triage",
+        "debugging"
+      ],
+      "trust_tier": "official"
+    }
+  ],
+  "version": 1
+}
