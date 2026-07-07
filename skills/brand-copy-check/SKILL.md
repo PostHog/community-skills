@@ -1,73 +1,119 @@
 ---
 name: Brand copy check
 description: >
-  Check a piece of copy against PostHog's brand voice and "How we describe PostHog" guidelines,
-  then rewrite it to fit. Use when someone is writing or reviewing in-product copy, marketing,
-  docs, or website text and wants it to match how PostHog talks about itself — correct product/tool/
-  context terminology, the self-driving framing, and the right voice and tone.
+  Check user-facing copy in a PR, diff, file, or pasted text against PostHog's brand and language
+  guidelines, then produce an advisory report with suggested rewrites. Use when a PR touches
+  marketing copy or in-product onboarding copy and you want to keep wording consistent with the
+  handbook — especially the self-driving positioning and the products/tools/Context Warehouse
+  terminology. Advisory only; never a merge blocker.
 trust_tier: community
-tags: [brand, copy, content, writing, review]
-author_handle: posthog
+tags: [brand, copy, content, marketing, docs]
 license: MIT
-compatibility: ""
-allowed_tools: []
 ---
 
 # Brand copy check
 
-You are reviewing a piece of copy against PostHog's brand guidelines. The source of truth is the
-brand handbook's [How we describe PostHog](https://posthog.com/handbook/brand/foundations#how-we-describe-posthog)
-section — the rules below summarize it, but defer to the handbook if it has changed.
+Review copy against PostHog's brand and language guidelines and report what's off, with a suggested rewrite for each finding. This exists so marketing pages and in-product onboarding copy say the same thing without a human hand-reviewing every PR.
 
-Work in two passes: first **flag** what's off-brand with a short reason, then **rewrite** the copy so
-it's ready to ship. Don't rewrite silently — always show what changed and why, so the author learns
-the rules.
+**This is advisory.** Flag and suggest — never rewrite in place, never block a merge. The author decides what to apply.
 
-## The rules to check against
+`$ARGUMENTS` can be a PR URL/number, one or more changed file paths, a raw diff, or pasted copy. Check **user-facing copy only** — headings, body text, UI strings, button labels, onboarding steps, error messages. Ignore code identifiers, variable names, and file paths even when they contain flagged words (e.g. an `app/` directory is fine; "download our app" is not).
 
-### The self-driving story
-- PostHog "makes _your_ product self-driving." Keep the **customer's product** as the subject — PostHog
-  is not "the self-driving app."
-- "self-driving" is a capability, not a product: always **lowercase and hyphenated**. Not
-  "Self-Driving", not "self driving".
-- The standard description: PostHog is "the leading platform for building self-driving products."
+## Step 1 – Gather the copy
 
-### The four layers — use these exact terms
-- **Products** — the surfaces customers adopt; "how you access self-driving." Currently Web, Slack,
-  MCP, and Code (Mobile coming).
-- **Tools** — functional capabilities accessed through products (analytics, session replay, feature
-  flags, experiments, error tracking, logs, AI observability). These were formerly called "apps" —
-  don't call them apps.
-- **Context** — the data feeding the self-driving loop; "the fuel."
-- **Context warehouse** — the data warehouse plus ingestion pipeline. **Don't say "PostHog Data Stack."**
+- **PR:** `gh pr diff <number-or-url>` (or read the changed files), then isolate added/changed prose and strings.
+- **Files:** Read them and pull the user-facing text.
+- **Diff / pasted text:** use it directly.
 
-### What PostHog is *not*
-- Not "an analytics platform" — it has grown beyond that.
-- Not a single product.
-- Not a "product improvement platform" — too vague.
-- Not enterprise-first — avoid enterprise-speak.
+Keep a note of where each snippet came from so the report can point back to it.
 
-### Voice and tone
-- **Personality:** opinionated, human, slightly weird, thoughtful, direct, honest, playful,
-  approachable. **Not:** corporate, random, fluffy, or arrogant.
-- **Audience:** product engineers. They distrust marketing by default and prefer specificity over
-  benefits language. Write for "a smart, skeptical friend who happens to be a product builder."
-- **Mindset:** "Yes and…" and "We can do this better ourselves." Copy should feel like "someone made
-  this on purpose."
-- **The Hacker News test:** before shipping, ask how it would land on Hacker News. Cut corporate spin,
-  vague claims, and try-hard humor.
+## Step 2 – Load guidelines (hybrid)
 
-## Steps
+Prefer the live handbook. Try to WebFetch these pages; if a page is reachable, its wording wins over the embedded snapshot below (the handbook is the source of truth and changes over time):
 
-1. **Read the copy** the user provides. If they haven't provided any, ask for it.
-2. **Flag issues**, grouped as: (a) terminology / framing errors — the highest-priority fixes, since
-   these are objectively wrong against the guidelines; (b) voice and tone — vague benefits language,
-   corporate spin, hedging, or anything that fails the Hacker News test.
-3. **Rewrite** the copy so it passes. Preserve the author's intent and length constraints; don't pad.
-4. **Summarize** the key changes as a short bulleted list so the rule is memorable.
+- <https://posthog.com/handbook/brand/foundations> — the four layers, what PostHog is/isn't
+- <https://posthog.com/handbook/brand/tone> — voice, weasel words, do/don't examples
+- <https://posthog.com/handbook/content/posthog-style-guide> — writing mechanics
+- <https://posthog.com/handbook/content/brand-message> — top-level messaging
+- <https://posthog.com/handbook/marketing/positioning> — word usage
+- <https://posthog.com/handbook/wizard-and-docs/docs-style-guide> — docs mechanics
 
-## Guardrails
-- Prioritize the objective terminology rules over subjective tone edits — call out which is which.
-- If the copy is already on-brand, say so plainly rather than inventing problems.
-- Don't change the technical meaning of the copy while fixing its voice — if a rewrite would alter a
-  factual claim, flag it and ask instead.
+If the pages can't be fetched (e.g. running inside the monorepo with no network), fall back to the embedded snapshot in Step 3. Note in the report which source was used.
+
+## Step 3 – Run the checks
+
+Check three groups. The embedded snapshot is the minimum bar; prefer live handbook wording when you have it.
+
+### A. Terminology & naming (highest priority — this is the pivot)
+
+- **Products** (canonical, per `brand/foundations`): **Web, Slack, MCP, Code** (Mobile coming). **PostHog AI** and **PostHog Inbox** live *inside* Web — they are not standalone products. "PostHog" on its own means the platform. Don't call a product a "tool."
+- **Tools** = the functional capabilities: product analytics, session replay, feature flags, experiments, error tracking, surveys, web analytics, the CDP, and so on. These are **Tools, not products** (this reverses the old naming). Flag anything calling a tool a "product" (e.g. "our session replay product").
+- **Context** = the data itself: events, recordings, errors, logs.
+- **Context Warehouse** = the data warehouse plus the ingestion pipeline. The CDP, Connectors, and the Data Warehouse are tools *within* it. **Never** "PostHog Data Stack."
+- **Avoid the word "app"** for now (both "the app" for PostHog and "download our app"). Suggest "PostHog," the specific product, or "tool" instead.
+- **"self-driving"** — always lowercase and hyphenated. It's a capability, not a product or tool. Keep the *customer's* product as the subject: "make your product self-driving," not "PostHog is self-driving software."
+- **Capitalize** PostHog product and tool names as proper nouns (Session Replay, Feature Flags); lowercase generic industry terms ("companies that offer product analytics").
+- If copy conflicts with the canonical product/tool/layer list above (for example, treating Inbox, PostHog AI, or the Context Warehouse as a standalone "product"), flag it and note the handbook is the source of truth — the canonical list may differ from older internal briefs.
+
+### B. Tone & voice (`brand/tone`)
+
+- Target voice: write like you're explaining something to a smart friend — clear, specific, direct, honest, opinionated, playful. Not corporate, fluffy, weaselly, or try-hard funny.
+- **Hacker News test:** would a skeptical developer roast this for corporate spin, vague claims, or forced humor? If yes, flag it.
+- Cut weasel/hedge words and suggest a concrete replacement: `leverage`→use, `utilize`→use, `streamline`→speed up/simplify, `robust`→describe it, `seamless`→say why it's easy, `best-in-class`/`holistic`/`synergy`→drop or describe, "empowers teams to"/"enables you to unlock"→say what they can now do.
+- Prefer specificity over benefit-speak: "It does X" beats "It empowers you to unlock X."
+
+### C. Mechanics
+
+- **enable** (provide the means), not **allow** (permit).
+- **Active voice**, not passive.
+- No trivializing words: `simply`, `just`, `easily`, `obviously`, `of course`, `clearly`.
+- **Present tense**; use **contractions**.
+- **Sentence case** for headings and titles (proper nouns excepted).
+- **Oxford comma**, always.
+- **En dash with spaces** ` – ` for asides — not an em dash `—` or a hyphen `-`.
+- **Straight quotes** `'` `"`, not curly.
+- **American English** (color, analyze, behavior).
+- Spell out numbers zero to nine; numerals for 10+, percentages, and technical values.
+
+### D. Docs-only extras (apply when the copy is documentation)
+
+- Address the reader directly ("you"), or use the imperative for steps.
+- Define jargon on first use; link to the relevant doc.
+- Precise verbs (call the API, query data) over vague ones (use, work with).
+- Inclusive language: allowlist/denylist, primary/secondary, validation (not sanity check).
+- Bold for UI elements and callout labels, not for general emphasis.
+- Definition lists use a dash, not a colon: `**Product analytics** - Track behavior`.
+
+## Step 4 – Report
+
+Output this format. Order findings by severity. For each, quote the exact offending text, name the rule, link the handbook page, and give a rewrite.
+
+```markdown
+# Brand copy check: {PR / file / snippet}
+Source of rules: {live handbook | embedded snapshot}
+
+## :red_circle: Terminology & positioning
+**"{exact quote}"** — {what's wrong, e.g. "session replay is a Tool, not a product"}
+Rule: {handbook link} · Suggested: "{rewrite}"
+
+## :large_yellow_circle: Tone & voice
+**"{exact quote}"** — {e.g. "weasel word 'leverage'"}
+Rule: {handbook link} · Suggested: "{rewrite}"
+
+## :large_blue_circle: Mechanics
+**"{exact quote}"** — {e.g. "'simply' trivializes the step"}
+Rule: {handbook link} · Suggested: "{rewrite}"
+
+## Summary
+{N} findings ({x} terminology, {y} tone, {z} mechanics). {One-line read on whether it's broadly on-brand.}
+
+_Advisory only — not a merge blocker. Apply what makes sense._
+```
+
+If nothing's off, say so plainly and note the copy reads on-brand — don't invent findings to look thorough.
+
+## Notes
+
+- **Terminology beats mechanics.** A misused "product/tool/app" during the self-driving pivot matters more than a stray em dash. Lead with those.
+- **Don't over-flag.** One instance of a pattern, noted once, is enough — don't list every hyphen.
+- **Stay in your lane:** this checks language, not facts, layout, or code. Don't comment on whether a claim is true, only on how it's worded.
