@@ -87,6 +87,10 @@ Rules worth knowing:
   same doubled-brace delimiters, so the two collide. Use `--json` with `--jq`.
 - Values are stored in plain text on the installed skill, so never ask for a secret, a token, or a
   password.
+- A value substituted into a shell command is not escaped. Substitution is plain text replacement,
+  and a branch or path name may legally contain `;`, `$()`, or a backtick, so a careless default
+  turns into a command the agent runs. Quote the placeholder, and have the skill check the value
+  against the shape it expects before any command that contains it.
 
 ## Safety
 
