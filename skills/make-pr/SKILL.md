@@ -6,7 +6,7 @@ description: >
   conventions and keeping public PRs free of PII.
 trust_tier: community
 tags: [github, pull-request, workflow]
-author_handle: andymaguire
+author_handle: andrewm4894
 license: MIT
 compatibility: Requires git and the GitHub CLI (gh) authenticated to the repo.
 ---
