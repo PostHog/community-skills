@@ -11,7 +11,7 @@ description: 'Daily driver for the PostHog Self-driving Inbox: a live in-flight 
   of a session touching in-flight inbox reports. Companion: the inbox-exploration
   skill that ships with the PostHog MCP (report mechanics; load it when acting on
   a report).'
-trust_tier: community
+trust_tier: official
 tags:
 - self-driving
 - inbox
