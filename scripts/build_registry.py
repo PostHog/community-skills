@@ -39,6 +39,29 @@ FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n?(.*)$", re.DOTALL)
 MAX_FILE_BYTES = 256 * 1024  # 256 KiB per bundled file (incl. SKILL.md)
 MAX_SKILL_BYTES = 1024 * 1024  # 1 MiB total embedded content per skill
 
+# What an entry becomes when it is used in PostHog. A `skill` installs as a skill. A `scout` opens the
+# scout-create form prefilled, where a person reviews its schedule before it runs.
+KIND_SKILL = "skill"
+KIND_SCOUT = "scout"
+VALID_KINDS = {KIND_SKILL, KIND_SCOUT}
+
+# Local copies of the bounds PostHog applies to a published scout's settings when it syncs this
+# registry. An entry that breaks them is dropped at sync, so CI rejects it here, where the author sees
+# why. PostHog stays the authority: it checks again at sync and when the create form is submitted.
+MIN_RUN_INTERVAL_MINUTES = 30
+MAX_RUN_INTERVAL_MINUTES = 43200  # 30 days
+MAX_CRON_SCHEDULE_LENGTH = 100
+CRON_FIELD_COUNT = 5
+MAX_SCOUT_TAGS = 10
+MAX_SCOUT_TAG_LENGTH = 50
+# `network_access`, `model` and `mcp_gateway_server_ids` are absent on purpose: they give a scout
+# reach into a project's data and services, so a shared scout never preselects them.
+SHAREABLE_SCOUT_CONFIG_KEYS = {"run_interval_minutes", "run_cron_schedule", "emit", "tags"}
+
+_TAG_SEPARATORS = re.compile(r"[\s_]+")
+_TAG_INVALID_CHARS = re.compile(r"[^a-z0-9-]+")
+_TAG_HYPHEN_RUNS = re.compile(r"-{2,}")
+
 
 def _list_of_str(frontmatter: dict[str, Any], slug: str, field: str) -> list[str]:
     """Coerce a frontmatter field to a list of strings, rejecting scalars.
@@ -52,6 +75,74 @@ def _list_of_str(frontmatter: dict[str, Any], slug: str, field: str) -> list[str
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ValueError(f"{slug}: '{field}' must be a YAML list of strings")
     return value
+
+
+def _slugify_tag(raw: str) -> str:
+    """Normalize a tag the way PostHog stores it on a scout: a lowercase kebab-case slug."""
+    slug = _TAG_SEPARATORS.sub("-", raw.strip().lower())
+    slug = _TAG_INVALID_CHARS.sub("", slug)
+    return _TAG_HYPHEN_RUNS.sub("-", slug).strip("-")
+
+
+def _validate_scout_config(raw: Any, slug: str) -> dict[str, Any]:
+    """Reject scout settings that PostHog would drop at sync, and return them unchanged otherwise."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"{slug}: 'scout_config' must be a mapping")
+
+    # Reject an unknown key rather than skip it, so an author who set `network_access` learns that it
+    # does not travel with the scout.
+    unknown = sorted(set(raw) - SHAREABLE_SCOUT_CONFIG_KEYS)
+    if unknown:
+        raise ValueError(
+            f"{slug}: 'scout_config' cannot carry {', '.join(unknown)}; only "
+            f"{', '.join(sorted(SHAREABLE_SCOUT_CONFIG_KEYS))} travel with a shared scout"
+        )
+
+    if "run_interval_minutes" in raw:
+        interval = raw["run_interval_minutes"]
+        # bool is an int subclass, and `true` would otherwise pass as a 1-minute cadence.
+        if isinstance(interval, bool) or not isinstance(interval, int):
+            raise ValueError(f"{slug}: 'scout_config.run_interval_minutes' must be an integer")
+        if not MIN_RUN_INTERVAL_MINUTES <= interval <= MAX_RUN_INTERVAL_MINUTES:
+            raise ValueError(
+                f"{slug}: 'scout_config.run_interval_minutes' must be between "
+                f"{MIN_RUN_INTERVAL_MINUTES} and {MAX_RUN_INTERVAL_MINUTES}"
+            )
+
+    # Only the shape is checked here. PostHog also checks that the cron matches a real date and runs
+    # at most every 30 minutes, which needs a cron parser this script does not depend on.
+    cron = raw.get("run_cron_schedule")
+    if cron is not None:
+        if not isinstance(cron, str):
+            raise ValueError(f"{slug}: 'scout_config.run_cron_schedule' must be a string")
+        if len(cron.strip()) > MAX_CRON_SCHEDULE_LENGTH:
+            raise ValueError(
+                f"{slug}: 'scout_config.run_cron_schedule' must be {MAX_CRON_SCHEDULE_LENGTH} characters or fewer"
+            )
+        if cron.strip() and len(cron.split()) != CRON_FIELD_COUNT:
+            raise ValueError(f"{slug}: 'scout_config.run_cron_schedule' must have {CRON_FIELD_COUNT} fields")
+
+    if "emit" in raw and not isinstance(raw["emit"], bool):
+        raise ValueError(f"{slug}: 'scout_config.emit' must be true or false")
+
+    if "tags" in raw:
+        tags = raw["tags"]
+        if not isinstance(tags, list) or not all(isinstance(tag, str) for tag in tags):
+            raise ValueError(f"{slug}: 'scout_config.tags' must be a YAML list of strings")
+        normalized: set[str] = set()
+        for tag in tags:
+            tag_slug = _slugify_tag(tag)
+            if not tag_slug:
+                raise ValueError(f"{slug}: scout tag {tag!r} is empty once normalized to a lowercase slug")
+            if len(tag_slug) > MAX_SCOUT_TAG_LENGTH:
+                raise ValueError(f"{slug}: each scout tag must be {MAX_SCOUT_TAG_LENGTH} characters or fewer")
+            normalized.add(tag_slug)
+        if len(normalized) > MAX_SCOUT_TAGS:
+            raise ValueError(f"{slug}: 'scout_config.tags' must have {MAX_SCOUT_TAGS} tags or fewer")
+
+    return raw
 
 
 def _parse_skill(skill_dir: Path) -> dict[str, Any]:
@@ -83,6 +174,14 @@ def _parse_skill(skill_dir: Path) -> dict[str, Any]:
     if trust_tier not in VALID_TRUST_TIERS:
         raise ValueError(f"{slug}: trust_tier must be one of {sorted(VALID_TRUST_TIERS)}")
 
+    kind = frontmatter.get("kind", KIND_SKILL)
+    if kind not in VALID_KINDS:
+        raise ValueError(f"{slug}: kind must be one of {sorted(VALID_KINDS)}")
+    if kind != KIND_SCOUT and frontmatter.get("scout_config"):
+        # The store would list this entry as a skill while its author expected a scout.
+        raise ValueError(f"{slug}: 'scout_config' is only valid with 'kind: scout'")
+    scout_config = _validate_scout_config(frontmatter.get("scout_config"), slug) if kind == KIND_SCOUT else {}
+
     skill_root = skill_dir.resolve()
     files: list[dict[str, str]] = []
     total_bytes = len(body.encode())
@@ -111,7 +210,12 @@ def _parse_skill(skill_dir: Path) -> dict[str, Any]:
     if total_bytes > MAX_SKILL_BYTES:
         raise ValueError(f"{slug}: embedded content is {total_bytes} bytes, over the {MAX_SKILL_BYTES}-byte limit")
 
-    return {
+    # The scout-create form takes instructions but no files, so a scout would arrive without the
+    # references its body cites.
+    if kind == KIND_SCOUT and files:
+        raise ValueError(f"{slug}: a scout cannot bundle files; put everything it needs in SKILL.md")
+
+    entry: dict[str, Any] = {
         "slug": slug,
         "name": str(frontmatter["name"]),
         "description": str(frontmatter["description"]).strip(),
@@ -130,6 +234,11 @@ def _parse_skill(skill_dir: Path) -> dict[str, Any]:
         "source_sha": "",
         "files": files,
     }
+    # Left off a plain skill, which PostHog reads as the default kind, so skill entries stay unchanged.
+    if kind == KIND_SCOUT:
+        entry["kind"] = kind
+        entry["scout_config"] = scout_config
+    return entry
 
 
 def build_registry() -> dict[str, Any]:

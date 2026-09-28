@@ -69,6 +69,9 @@ Run both scripts before opening a PR. They are exactly what CI runs.
 | `trust_tier` | one of `official` / `verified` / `community`; default `community` |
 | `tags`, `allowed_tools` | must be YAML **lists** of strings — a bare scalar is rejected |
 | `metadata` | free-form map; `metadata.variables` makes the skill a template (see CONTRIBUTING) |
+| `kind` | `skill` (default) or `scout`; only a scout entry carries `kind` and `scout_config` in `registry.json` |
+| `scout_config` | scouts only; `run_interval_minutes` / `run_cron_schedule` / `emit` / `tags`, same bounds PostHog enforces (see CONTRIBUTING) |
+| Scout files | a `kind: scout` skill bundles no files — `SKILL.md` only |
 | Bundled files | UTF-8 text only, ≤256 KiB each, ≤1 MiB per skill, **no symlinks** |
 
 Gotchas that differ from the upstream [agentskills.io](https://agentskills.io/specification) spec:
