@@ -92,6 +92,33 @@ Rules worth knowing:
   turns into a command the agent runs. Quote the placeholder, and have the skill check the value
   against the shape it expects before any command that contains it.
 
+## Scouts
+
+A skill can also be a scout: a scheduled agent that scans a PostHog project and writes what it finds
+to the inbox. Set `kind: scout` in the frontmatter. In the store, a scout gets a "Set up scout" button
+instead of "Install". It opens the scout form prefilled, and a person reviews the schedule before
+anything runs. Publishing a custom scout from its page in PostHog fills these fields for you.
+
+```markdown
+---
+name: Expensive traces
+description: >
+  What it watches and when to set it up.
+kind: scout
+scout_config:                        # optional — prefills the scout form
+  run_interval_minutes: 1440         # 30 to 43200 (30 days)
+  run_cron_schedule: "0 9 * * 1"     # five-field cron; used instead of the interval when set
+  emit: true                         # false runs the scout without writing to the inbox
+  tags: [ai-observability]           # up to 10 tags of up to 50 characters
+---
+```
+
+- `scout_config` takes only the four fields above. Network access, the model, and MCP servers never
+  travel with a shared scout, so CI rejects an entry that sets them.
+- A scout cannot bundle files. The scout form takes instructions only, so put everything the scout
+  needs in `SKILL.md`.
+- A scout can be a template. The installer fills in `metadata.variables` before the form opens.
+
 ## Safety
 
 Skills are agent instructions. PRs are reviewed for prompt-injection and data-exfiltration patterns.
