@@ -60,7 +60,8 @@ A finding is a drop in the share of entrants who complete, measured on cohorts w
 - Score **people, not events**: each person counts once per 7-day entrant cohort, at their first start event in that cohort.
 - Score only **mature** cohorts: every entrant has had the full {{ conversion_window_days }} days to complete. A cohort that is still filling always looks like a drop.
 - Compare like with like: 7-day cohorts cover every weekday once, so ordinary weekly seasonality cancels out.
-- A drop where the entrants also collapsed, or where the completion event stopped arriving, is a capture or traffic problem, not a conversion regression. Say so plainly instead of reporting a conversion drop.
+- A drop where the entrants also collapsed is a capture or traffic problem, not a conversion regression. Say so plainly instead of reporting a conversion drop.
+- A completion event that suddenly stops arriving while entrants hold looks the same whether the product broke or only the tracking did. Treat it as a broken journey unless you find independent evidence of a tracking change (see the capture check below).
 
 ## Check the configuration first
 
@@ -144,18 +145,24 @@ The drop `m - r` clears the bar only when all three hold:
 
 A drop that clears the bar by twice or more is reportable on this run.
 A smaller drop that clears it goes into `watch:funnel_scout:{{ flow_name }}` with the numbers. Report it only if a run at least 3 days later still clears the bar.
+While a report on this journey is open, use the saved pre-drop baseline instead of the rolling one (see **Decide** below).
 
 ### Rule out measurement problems
 
 Before you report a drop, check the things that produce the same shape without any change in user behaviour:
 
-- **Capture.** Count both events per day for the last 30 days alongside the project's total daily events. If the completion event fell sharply on one date while other traffic held, that is a tracking break: a renamed event, a removed call, or a release that stopped sending it. Break the completion event down by `$lib`, `$lib_version`, or `$app_version` to find the release.
+- **Capture.** Count both events per day for the last 30 days alongside the project's total daily events. If the completion event fell sharply on one date while other traffic held, users may have stopped completing, or the event may have stopped being sent. A falling event count alone cannot tell these apart, so look for independent evidence of a tracking change before you call it one:
+  - A new event with a similar name that starts on the same date, which suggests a rename.
+  - Other signs of success that held steady, such as a confirmation page's `$pageview`, a downstream event that only follows completion, or a server-side event for the same outcome.
+  - A breakdown of the completion event by `$lib`, `$lib_version`, or `$app_version` that shows it vanished from one release or platform while users on that release still reach the success screen or its downstream events.
+
+  Without evidence like this, treat the drop as a broken journey and report it as a conversion drop, naming the tracking break as the alternative to rule out.
 - **Identity.** Compare total completion events in cohort 0's window with the baseline weeks. If completions held steady but conversions per entrant fell, completions are landing on different people from the ones who entered. Look for a change in how users are identified, such as a new login step, a reset after signup, or a change in the start event's platform. Read the project's person-on-events setting with `project-get`.
 - **Low volume.** Re-check the traffic gate and the noise rule. A drop driven by a handful of people is not a finding.
 - **Seasonality.** Look for a holiday or known event in the cohort's dates, and check the project's annotations. If the project has a year of data, rerun the query shifted back 52 weeks to see whether the same dates dipped last year.
 - **Population change.** Break cohort 0 and the baseline down by one or two properties of the start event (country, `$os`, `$browser`, initial referring domain, plan). A drop that comes entirely from a new or growing segment, such as a new acquisition campaign, is a mix shift. Report it only if it matters on its own terms, and call it a mix shift.
 
-A tracking break is worth one report of its own, titled as a tracking break rather than a conversion drop, because every chart on this journey is now wrong.
+A confirmed tracking break is worth one report of its own, titled as a tracking break rather than a conversion drop, because every chart on this journey is now wrong. Include the evidence that users still complete.
 
 ### Explain before you report
 
@@ -167,9 +174,18 @@ A tracking break is worth one report of its own, titled as a tracking break rath
 ### Decide
 
 - **Report** when the drop clears the bar and survives the measurement checks. Lead with what changed for users and how many fewer people completed, then the evidence, then the most likely cause and what to check next.
-- **Edit** an open report on this journey with `scout-edit-report` instead of filing a new one while the drop persists. When conversion recovers into the baseline range, edit the report to say so.
+- **Edit** an open report on this journey with `scout-edit-report` instead of filing a new one while the drop persists.
 - **Remember** a drop below the bar, a ruled-out cause, or a known seasonal dip, so later runs do not redo the work.
-- Keep to one open report per journey. A tracking break and a conversion drop on the same dates are one report about the tracking break.
+- Keep to one open report per journey. A confirmed tracking break and a conversion drop on the same dates are one report about the tracking break.
+
+**While a report is open, judge against the pre-drop baseline.**
+After a sustained drop, the degraded cohorts roll into the baseline within a week or two. The current rate then sits inside the rolling baseline even though nothing improved.
+When you file a report, save the pre-drop baseline (median, range, and cohort dates) in its `dedupe:` entry.
+On later runs, compare cohort 0 with that saved baseline, not with the rolling one, and leave the cohorts after the onset out of the baseline.
+
+- The drop **persists** while cohort 0 still clears the bar against the saved baseline. Edit the report with the new numbers.
+- The journey has **recovered** only when cohort 0 is back inside the saved pre-drop range. Edit the report to say so, then forget the `dedupe:` entry.
+- If the report is closed while conversion is still low, the team has accepted the new level. Forget the `dedupe:` entry and let the rolling baseline take over.
 
 Every report must include:
 
@@ -187,7 +203,7 @@ Encode the category in the key prefix so later runs can search it:
 - `baseline:funnel_scout:{{ flow_name }}`: "baseline median 36.6%, range 34.2–39.3%, 8 cohorts of 1,900–2,900 entrants, refreshed 2026-01-12"
 - `watch:funnel_scout:{{ flow_name }}`: "cohort ending 2026-01-10 at 31.0%, cleared the bar once; recheck on or after 2026-01-13"
 - `noise:funnel_scout:{{ flow_name }}`: "late-December cohorts dip every year; not a finding"
-- `dedupe:funnel_scout:{{ flow_name }}`: "reported the drop starting 2026-01-08 in report <id>; edit that report while it persists"
+- `dedupe:funnel_scout:{{ flow_name }}`: "reported the drop starting 2026-01-08 in report <id>; pre-drop baseline median 36.6%, range 34.2–39.3%, cohorts ending 2025-11-15 to 2026-01-07; edit that report while it persists"
 
 ### Close out
 
@@ -198,7 +214,8 @@ The harness saves it as the run summary, so do not write a separate run-summary 
 
 - Cohorts whose conversion window has not fully closed.
 - Cohorts below the traffic gate, and drops inside the sampling noise.
-- A drop where entrants collapsed or the completion event stopped arriving: that is a capture or traffic problem. Report it once as a tracking break if it persists.
+- A drop where entrants collapsed: that is a capture or traffic problem, not a conversion regression.
+- A completion event that stopped arriving, when you have independent evidence that users still complete: report it once as a tracking break, not as a conversion drop.
 - A drop explained by a known seasonal dip, a deliberate experiment, or a mix shift the team already knows about.
 - A rise in conversion. It is good news, not an inbox item, though it is worth a `baseline:` refresh.
 
